@@ -1,6 +1,5 @@
 # X-Ray auto-patching for AWS services
 # This module automatically patches AWS services for X-Ray tracing
-# Import this module FIRST to ensure all boto3 calls are traced
 
 try:
     from aws_xray_sdk.core import xray_recorder
@@ -9,10 +8,11 @@ try:
     # Auto-patch all AWS services for X-Ray tracing
     patch_all()
     
-    # Configure X-Ray recorder for Lambda environment
+    # Configure X-Ray recorder
     xray_recorder.configure(
         context_missing='LOG_ERROR',
         plugins=('EC2Plugin', 'ECSPlugin'),
+        daemon_address='127.0.0.1:2000'
     )
     
 except ImportError:

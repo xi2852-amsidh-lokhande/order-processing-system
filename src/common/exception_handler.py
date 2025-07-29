@@ -1,6 +1,6 @@
 import json
-from src.common.logger import get_logger
-from src.common.exceptions import ErrorDetail, InternalServerError
+from .logger import get_logger
+from .exceptions import ErrorDetail, InternalServerError
 
 
 def exception_handler(func):

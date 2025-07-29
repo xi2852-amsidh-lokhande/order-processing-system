@@ -1,8 +1,10 @@
 # Data access for inventory records
 import os
 import boto3
+import json
+from datetime import datetime
 from botocore.exceptions import ClientError
-from src.common.exceptions import InternalServerError
+from common.exceptions import InternalServerError
 
 INVENTORY_TABLE = os.getenv("INVENTORY_TABLE", "Inventory")
 IDEMPOTENCY_TABLE = os.getenv("IDEMPOTENCY_TABLE", "IdempotencyKeys")
@@ -30,8 +32,8 @@ def update_inventory_record(inventory_record):
             {
                 "Put": {
                     "TableName": IDEMPOTENCY_TABLE,
-                    "Item": {"idempotencyKey": {"S": order_id}},
-                    "ConditionExpression": "attribute_not_exists(idempotencyKey)",
+                    "Item": {"id": {"S": order_id}},
+                    "ConditionExpression": "attribute_not_exists(id)",
                 }
             }
         )

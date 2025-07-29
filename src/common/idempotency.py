@@ -10,7 +10,8 @@ table = dynamodb.Table(IDEMPOTENCY_TABLE)
 
 def is_idempotent(key):
     try:
-        response = table.get_item(Key={"idempotencyKey": key})
+        # Use correct key name 'id' as defined in template.yaml
+        response = table.get_item(Key={"id": key})
         return "Item" in response
     except ClientError:
         return False
@@ -18,6 +19,7 @@ def is_idempotent(key):
 
 def mark_idempotent(key):
     try:
-        table.put_item(Item={"idempotencyKey": key})
+        # Use correct key name 'id' as defined in template.yaml
+        table.put_item(Item={"id": key})
     except ClientError:
         pass

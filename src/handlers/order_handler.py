@@ -1,11 +1,12 @@
 # Handler for order-related Lambda events
 import json
 
-from src.common.logger import get_logger
-from src.common.exceptions import BadRequestException
-from src.services.order_service import place_order
-from src.common.exception_handler import exception_handler
-from src.common.validation import validate_request
+from common.logger import get_logger
+from common.exceptions import BadRequestException
+from services.order_service import place_order
+from common.exception_handler import exception_handler
+from common.validation import validate_request
+from events.producer.producer import publish_order_placed
 
 
 @exception_handler
@@ -20,6 +21,15 @@ def lambda_handler(event, context):
     order_result = place_order(body)
     logger.info(
         "Order placed successfully", extra={"orderId": order_result.get("orderId")}
+    )
+    # After saving order to DynamoDB
+    publish_order_placed(
+        {
+            "orderId": order_result.get("orderId"),
+            "customerId": body.get("customerId"),
+            "items": body.get("items"),
+            "totalAmount": order_result.get("totalAmount"),
+        }
     )
     return {
         "statusCode": 201,

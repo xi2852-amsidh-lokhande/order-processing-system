@@ -1,7 +1,10 @@
 # Centralized exception handling and ErrorDetail object
 
 import datetime
-from src.common.constants import ERROR_CODES
+"""Custom exceptions for the order processing system."""
+from typing import Dict, Any
+from dataclasses import dataclass
+from .constants import ERROR_CODES
 
 
 class ErrorDetail(Exception):

@@ -2,45 +2,38 @@
 import os
 import boto3
 import json
+from datetime import datetime
+from decimal import Decimal
 from botocore.exceptions import ClientError
-from src.common.exceptions import InternalServerError
+from common.exceptions import InternalServerError
 
+# Use the correct environment variable names from template.yaml
 ORDERS_TABLE = os.getenv("ORDERS_TABLE", "Orders")
 IDEMPOTENCY_TABLE = os.getenv("IDEMPOTENCY_TABLE", "IdempotencyKeys")
 dynamodb = boto3.resource("dynamodb")
-client = boto3.client("dynamodb")
 table = dynamodb.Table(ORDERS_TABLE)
 
 
 def save_order(order_record):
-    order_id = order_record.get("orderId")
-    transact_items = [
-        {
-            "Put": {
-                "TableName": ORDERS_TABLE,
-                "Item": {
-                    k: (
-                        {"S": json.dumps(v)} if isinstance(v, (dict, list))
-                        else {"S": str(v)} if isinstance(v, str)
-                        else {"N": str(v)}
-                    )
-                    for k, v in order_record.items()
-                },
-            }
-        }
-    ]
-    # Add idempotency record if order_id is present
-    if order_id:
-        transact_items.append(
-            {
-                "Put": {
-                    "TableName": IDEMPOTENCY_TABLE,
-                    "Item": {"idempotencyKey": {"S": order_id}},
-                    "ConditionExpression": "attribute_not_exists(idempotencyKey)",
-                }
-            }
-        )
+    """Save order using high-level DynamoDB resource for simplicity"""
     try:
-        client.transact_write_items(TransactItems=transact_items)
+        # Use high-level put_item instead of low-level transact_write
+        table.put_item(Item=order_record)
+        
+        # Handle idempotency separately if needed
+        order_id = order_record.get("orderId")
+        if order_id:
+            idempotency_table = dynamodb.Table(IDEMPOTENCY_TABLE)
+            try:
+                # Use the correct key name 'id' as defined in template.yaml
+                idempotency_table.put_item(
+                    Item={"id": order_id},
+                    ConditionExpression="attribute_not_exists(id)"
+                )
+            except ClientError as e:
+                # If idempotency check fails, it's likely a duplicate - that's okay
+                if e.response['Error']['Code'] != 'ConditionalCheckFailedException':
+                    raise
+                    
     except ClientError as e:
         raise InternalServerError(recommended_data={"details": str(e)})

@@ -1,4 +1,4 @@
-from src.common.exceptions import BadRequestException
+from .exceptions import BadRequestException
 
 
 def validate_request(data, required_fields=None):

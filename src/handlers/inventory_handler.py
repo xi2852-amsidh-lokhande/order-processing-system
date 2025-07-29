@@ -1,8 +1,8 @@
 import json
-from src.common.logger import get_logger
-from src.common.exception_handler import exception_handler
-from src.common.validation import validate_request
-from src.services.inventory_service import update_inventory
+from common.logger import get_logger
+from common.exception_handler import exception_handler
+from common.validation import validate_request
+from services.inventory_service import update_inventory
 
 
 @exception_handler

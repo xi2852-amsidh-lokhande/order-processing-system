@@ -1,8 +1,8 @@
 import json
-from src.common.logger import get_logger
-from src.common.exception_handler import exception_handler
-from src.common.validation import validate_request
-from src.services.payment_service import process_payment
+from common.logger import get_logger
+from common.exception_handler import exception_handler
+from common.validation import validate_request
+from services.payment_service import process_payment
 
 
 @exception_handler

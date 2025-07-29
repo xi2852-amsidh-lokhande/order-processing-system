@@ -1,7 +1,8 @@
 # DLQ replay utility for EventBridge consumers
 import json
-from src.common.logger import get_logger
-from src.common.exception_handler import exception_handler
+import boto3
+from .logger import get_logger
+from .exception_handler import exception_handler
 
 
 def replay_dlq_events(event, context, process_func):

@@ -1,5 +1,5 @@
-from src.common.idempotency import is_idempotent, mark_idempotent
-from src.common.dlq_replay import replay_dlq_events
+from common.idempotency import is_idempotent, mark_idempotent
+from common.dlq_replay import replay_dlq_events
 
 
 # DLQ replay Lambda entrypoint
@@ -33,9 +33,9 @@ def _process_inventory_event(detail):
 
 
 import json
-from src.common.logger import get_logger
-from src.common.exception_handler import exception_handler
-from src.services.inventory_service import update_inventory
+from common.logger import get_logger
+from common.exception_handler import exception_handler
+from services.inventory_service import update_inventory
 
 
 @exception_handler
