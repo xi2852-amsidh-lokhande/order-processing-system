@@ -1,0 +1,35 @@
+Here is a sequence of prompts to guide the creation of a project using AWS Lambda and the specified AWS services and architecture. The "Order Processing System for a Multi-Vendor E-Commerce Platform" is an excellent fit and will be used as the use case.
+
+Prompt 1: Project Overview
+Design an "Order Processing System for a Multi-Vendor E-Commerce Platform" using AWS Lambda. The system should allow customers to place orders, vendors to manage their inventory, and the platform to process payments and notifications. The architecture must use AWS API Gateway, Lambda Authorizers (custom role-based and username-password), EventBridge, DLQ with replay, and DynamoDB. The codebase should be modular with handler, service, DAO, and shared/common layers, and include structured JSON logging and centralized exception handling.
+
+Prompt 2: API Gateway & Lambda Authorizer
+Implement an AWS API Gateway with endpoints for order placement, order status, and vendor inventory management. Secure the endpoints using a custom Lambda Authorizer that supports both role-based access and username-password authentication. The authorizer should return appropriate IAM policies and user context to the API Gateway.
+
+Prompt 3: Lambda Function Structure
+For each business Lambda (e.g., order placement, inventory update), structure the code into handler, service, DAO, and common/shared layers. Ensure all Lambda functions use JSON-structured logging and centralized exception handling. On error, return a consistent ErrorDetail object:
+
+errorCode
+errorMessage
+timestamp
+recommendedData (optional, for recovery or next steps)
+Prompt 4: EventBridge Integration
+Integrate AWS EventBridge to handle order events (e.g., OrderPlaced, InventoryUpdated, PaymentProcessed). Set up a DLQ (Dead Letter Queue) for failed events and implement a replay mechanism to reprocess failed events. Ensure that replayed events maintain data consistency, especially for idempotency and transactional integrity.
+
+Prompt 5: Event Producers and Consumers
+Implement at least one event producer Lambda (e.g., order placement triggers OrderPlaced event) and three event consumer Lambdas:
+
+Inventory Service (updates vendor inventory)
+Payment Service (processes payment)
+Notification Service (notifies vendor and customer)
+Ensure the event producer is notified by all consumers once their processing is complete. During event replay, ensure consumer-side data consistency (e.g., no duplicate inventory updates or payments).
+Prompt 6: DynamoDB Usage
+Use DynamoDB to store orders, inventory, and payment records. Design tables for efficient access patterns and transactional updates where necessary (e.g., using DynamoDB transactions for order and inventory updates).
+
+Prompt 7: Logging and Error Handling
+Implement centralized, JSON-structured logging in all Lambdas. All errors should be caught and returned in the ErrorDetail format. Log all exceptions and important business events for traceability.
+
+Prompt 8: Replay and Consistency
+Describe and implement the replay logic for failed events from the DLQ. Ensure that replayed events do not cause data inconsistencies or duplicate processing. Use idempotency keys or DynamoDB conditional writes as needed.
+
+This sequence will guide the implementation of a robust, production-grade serverless order processing system using the specified AWS services and best practices.

@@ -1,0 +1,90 @@
+# SAM configuration file for Order Processing System
+
+version = 0.1
+
+[default]
+[default.global.parameters]
+stack_name = "order-processing-system"
+region = "us-east-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = [
+    "Environment=dev",
+    "ProjectName=order-processing-system"
+]
+disable_rollback = false
+image_repositories = []
+
+[default.build.parameters]
+cached = true
+parallel = true
+
+[default.deploy.parameters]
+fail_on_empty_changeset = false
+stack_name = "order-processing-system-dev"
+s3_prefix = "order-processing-system-dev"
+resolve_s3 = true
+parameter_overrides = "Environment=\"dev\" ProjectName=\"order-processing-system\""
+image_repositories = []
+
+[default.package.parameters]
+s3_prefix = "order-processing-system"
+
+[default.sync.parameters]
+watch = true
+
+[default.local_start_api.parameters]
+warm_containers = "EAGER"
+
+[default.local_start_lambda.parameters]
+warm_containers = "EAGER"
+
+# Production environment configuration
+[production]
+[production.global.parameters]
+stack_name = "order-processing-system-prod"
+region = "us-east-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = [
+    "Environment=prod",
+    "ProjectName=order-processing-system"
+]
+
+[production.deploy.parameters]
+capabilities = "CAPABILITY_IAM"
+confirm_changeset = true
+fail_on_empty_changeset = false
+stack_name = "order-processing-system-prod"
+s3_prefix = "order-processing-system-prod"
+region = "us-east-1"
+resolve_s3 = true
+parameter_overrides = [
+    "Environment=prod",
+    "ProjectName=order-processing-system"
+]
+
+# Staging environment configuration
+[staging]
+[staging.global.parameters]
+stack_name = "order-processing-system-staging"
+region = "us-east-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = [
+    "Environment=staging",
+    "ProjectName=order-processing-system"
+]
+
+[staging.deploy.parameters]
+capabilities = "CAPABILITY_IAM"
+confirm_changeset = true
+fail_on_empty_changeset = false
+stack_name = "order-processing-system-staging"
+s3_prefix = "order-processing-system-staging"
+region = "us-east-1"
+resolve_s3 = true
+parameter_overrides = [
+    "Environment=staging",
+    "ProjectName=order-processing-system"
+]
