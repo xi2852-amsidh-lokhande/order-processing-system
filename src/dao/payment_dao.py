@@ -8,12 +8,26 @@ from common.exceptions import InternalServerError
 
 PAYMENTS_TABLE = os.getenv("PAYMENTS_TABLE", "Payments")
 IDEMPOTENCY_TABLE = os.getenv("IDEMPOTENCY_TABLE", "IdempotencyKeys")
-dynamodb = boto3.resource("dynamodb")
-client = boto3.client("dynamodb")
-table = dynamodb.Table(PAYMENTS_TABLE)
+
+# Lazy initialization to ensure X-Ray patching happens first
+_dynamodb = None
+_client = None
+_table = None
+
+def get_dynamodb_resources():
+    """Get DynamoDB resources with lazy initialization to ensure X-Ray patching"""
+    global _dynamodb, _client, _table
+    if _dynamodb is None:
+        _dynamodb = boto3.resource("dynamodb")
+        _client = boto3.client("dynamodb")
+        _table = _dynamodb.Table(PAYMENTS_TABLE)
+    return _dynamodb, _client, _table
 
 
 def save_payment(payment_record):
+    # Get DynamoDB resources with lazy initialization
+    dynamodb, client, table = get_dynamodb_resources()
+    
     order_id = payment_record.get("orderId")
     transact_items = [
         {

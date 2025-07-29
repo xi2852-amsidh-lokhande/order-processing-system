@@ -1,6 +1,6 @@
 from common.idempotency import is_idempotent, mark_idempotent
 from common.dlq_replay import replay_dlq_events
-
+im
 
 # DLQ replay Lambda entrypoint
 def replay_handler(event, context):
@@ -31,10 +31,7 @@ def _process_notification_event(detail):
 import json
 from common.logger import get_logger
 from common.exception_handler import exception_handler
-
-
-@exception_handler
-def lambda_handler(event, context):
+andler(event, context):
     logger = get_logger("notification-consumer")
     for record in event.get("Records", []):
         detail = (

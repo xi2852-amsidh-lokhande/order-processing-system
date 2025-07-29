@@ -36,6 +36,10 @@ Globals:
         AWS_XRAY_TRACING_NAME:
           Fn::Sub: ${ProjectName}-${Environment}
         AWS_XRAY_CONTEXT_MISSING: LOG_ERROR
+        # Cross-cutting X-Ray configuration for DynamoDB tracing
+        AWS_XRAY_DEBUG_MODE: "FALSE"
+        # Enable auto-patching on import
+        XRAY_AUTO_PATCH: "true"
 Resources:
   OrdersTable:
     Type: AWS::DynamoDB::Table
@@ -51,6 +55,10 @@ Resources:
         KeyType: HASH
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: true
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+      SSESpecification:
+        SSEEnabled: true
       Tags:
       - Key: Environment
         Value:
@@ -169,6 +177,25 @@ Resources:
         AllowMethods: '''GET,POST,PUT,DELETE,OPTIONS'''
         AllowHeaders: '''Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'''
         AllowOrigin: '''*'''
+      Auth:
+        DefaultAuthorizer: CustomAuthorizer
+        Authorizers:
+          CustomAuthorizer:
+            FunctionArn:
+              Fn::GetAtt: CustomAuthorizerFunction.Arn
+
+  # Custom Authorizer Function
+  CustomAuthorizerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName:
+        Fn::Sub: ${ProjectName}-${Environment}-custom-authorizer
+      CodeUri: ../src
+      Handler: authorizers.custom_authorizer.lambda_handler
+      Description: Custom authorizer with X-Ray tracing
+      Policies:
+        - SecretsManagerReadWrite
+      
   OrderHandler:
     Type: AWS::Serverless::Function
     Properties:
@@ -253,6 +280,25 @@ Resources:
             Ref: IdempotencyTable
     Metadata:
       SamResourceId: PaymentHandler
+
+  # Event Producer Function (if needed as standalone)
+  EventProducerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName:
+        Fn::Sub: ${ProjectName}-${Environment}-event-producer
+      CodeUri: ../src
+      Handler: events.producer.producer.lambda_handler
+      Description: Event producer for EventBridge with X-Ray tracing
+      Policies:
+      - EventBridgePutEventsPolicy:
+          EventBusName:
+            Ref: OrderProcessingEventBus
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: IdempotencyTable
+    Metadata:
+      SamResourceId: EventProducerFunction
 
   # Event Consumers
   InventoryConsumer:
@@ -346,6 +392,12 @@ Resources:
       QueueName:
         Fn::Sub: ${ProjectName}-${Environment}-notification-dlq
       MessageRetentionPeriod: 1209600
+  XRayInsights:
+    Type: AWS::XRay::Group
+    Properties:
+      GroupName:
+        Fn::Sub: ${ProjectName}-${Environment}-insights
+      FilterExpression: "service(\"order-processing\")"
 Outputs:
   OrderProcessingAPIUrl:
     Description: API Gateway endpoint URL for Order Processing
@@ -387,4 +439,15 @@ Outputs:
   XRayTracingInfo:
     Description: X-Ray tracing configuration
     Value:
-      Fn::Sub: 'X-Ray enabled with service name: ${ProjectName}-${Environment}'
+      Fn::Sub: 'X-Ray enabled with service name: ${ProjectName}-${Environment}. DynamoDB tracing: Enabled via cross-cutting concern.'
+    Export:
+      Name:
+        Fn::Sub: ${ProjectName}-${Environment}-XRayInfo
+
+  XRayInsightsGroup:
+    Description: X-Ray Insights Group for advanced tracing analytics
+    Value:
+      Ref: XRayInsights
+    Export:
+      Name:
+        Fn::Sub: ${ProjectName}-${Environment}-XRayInsights
