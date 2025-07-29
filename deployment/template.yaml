@@ -1,569 +1,390 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: Order Processing System for Multi-Vendor E-Commerce Platform
-
+Description: Order Processing System with Cross-Cutting X-Ray DynamoDB Tracing
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+    - dev
+    - staging
+    - prod
+    Description: Environment name
+  ProjectName:
+    Type: String
+    Default: order-processing-v2
+    Description: Project name for resource naming
 Globals:
   Function:
     Timeout: 30
     MemorySize: 512
     Runtime: python3.13
-    Tracing: Active  # Enable X-Ray tracing for all Lambda functions
-    Layers:
-      # AWS X-Ray SDK Layer (automatically patches boto3 for tracing)
-      # This works as a cross-cutting concern without requiring code changes
-      - !Sub "arn:aws:lambda:${AWS::Region}:901920570463:layer:aws-xray-sdk-python38:1"
+    Tracing: Active
     Environment:
       Variables:
-        ORDERS_TABLE: !Ref OrdersTable
-        INVENTORY_TABLE: !Ref InventoryTable
-        PAYMENTS_TABLE: !Ref PaymentsTable
-        IDEMPOTENCY_TABLE: !Ref IdempotencyTable
-        EVENT_BUS_NAME: !Ref OrderProcessingEventBus
+        ORDERS_TABLE:
+          Ref: OrdersTable
+        INVENTORY_TABLE:
+          Ref: InventoryTable
+        PAYMENTS_TABLE:
+          Ref: PaymentsTable
+        IDEMPOTENCY_TABLE:
+          Ref: IdempotencyTable
+        EVENT_BUS_NAME:
+          Ref: OrderProcessingEventBus
         AUTH_TOKEN: demo-token
-        _X_AMZN_TRACE_ID: !Ref AWS::NoValue  # Auto-injected by X-Ray
-        AWS_XRAY_TRACING_NAME: !Sub "${ProjectName}-${Environment}"
+        AWS_XRAY_TRACING_NAME:
+          Fn::Sub: ${ProjectName}-${Environment}
         AWS_XRAY_CONTEXT_MISSING: LOG_ERROR
-        # Ensure X-Ray tracing is enabled (cross-cutting concern)
-        _X_AMZN_TRACE_DISABLED: "false"
-
-Parameters:
-  Environment:
-    Type: String
-    Default: dev
-    AllowedValues: [dev, staging, prod]
-    Description: Environment name
-  
-  ProjectName:
-    Type: String
-    Default: order-processing-system
-    Description: Project name for resource naming
-
 Resources:
-  # DynamoDB Tables
   OrdersTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub "${ProjectName}-${Environment}-Orders"
+      TableName:
+        Fn::Sub: ${ProjectName}-${Environment}-Orders
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
-        - AttributeName: orderId
-          AttributeType: S
+      - AttributeName: orderId
+        AttributeType: S
       KeySchema:
-        - AttributeName: orderId
-          KeyType: HASH
-      StreamSpecification:
-        StreamViewType: NEW_AND_OLD_IMAGES
+      - AttributeName: orderId
+        KeyType: HASH
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: true
       Tags:
-        - Key: Environment
-          Value: !Ref Environment
-        - Key: Project
-          Value: !Ref ProjectName
-
+      - Key: Environment
+        Value:
+          Ref: Environment
+      - Key: Project
+        Value:
+          Ref: ProjectName
   InventoryTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub "${ProjectName}-${Environment}-Inventory"
+      TableName:
+        Fn::Sub: ${ProjectName}-${Environment}-Inventory
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
-        - AttributeName: productId
-          AttributeType: S
-        - AttributeName: vendorId
-          AttributeType: S
+      - AttributeName: vendorId
+        AttributeType: S
+      - AttributeName: productId
+        AttributeType: S
       KeySchema:
+      - AttributeName: vendorId
+        KeyType: HASH
+      - AttributeName: productId
+        KeyType: RANGE
+      GlobalSecondaryIndexes:
+      - IndexName: ProductIndex
+        KeySchema:
         - AttributeName: productId
           KeyType: HASH
-        - AttributeName: vendorId
-          KeyType: RANGE
-      GlobalSecondaryIndexes:
-        - IndexName: VendorIndex
-          KeySchema:
-            - AttributeName: vendorId
-              KeyType: HASH
-          Projection:
-            ProjectionType: ALL
+        Projection:
+          ProjectionType: ALL
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
       Tags:
-        - Key: Environment
-          Value: !Ref Environment
-        - Key: Project
-          Value: !Ref ProjectName
-
+      - Key: Environment
+        Value:
+          Ref: Environment
+      - Key: Project
+        Value:
+          Ref: ProjectName
   PaymentsTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub "${ProjectName}-${Environment}-Payments"
+      TableName:
+        Fn::Sub: ${ProjectName}-${Environment}-Payments
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
-        - AttributeName: orderId
-          AttributeType: S
+      - AttributeName: paymentId
+        AttributeType: S
+      - AttributeName: orderId
+        AttributeType: S
       KeySchema:
+      - AttributeName: paymentId
+        KeyType: HASH
+      GlobalSecondaryIndexes:
+      - IndexName: OrderIndex
+        KeySchema:
         - AttributeName: orderId
           KeyType: HASH
+        Projection:
+          ProjectionType: ALL
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
       Tags:
-        - Key: Environment
-          Value: !Ref Environment
-        - Key: Project
-          Value: !Ref ProjectName
-
+      - Key: Environment
+        Value:
+          Ref: Environment
+      - Key: Project
+        Value:
+          Ref: ProjectName
   IdempotencyTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub "${ProjectName}-${Environment}-IdempotencyKeys"
+      TableName:
+        Fn::Sub: ${ProjectName}-${Environment}-IdempotencyKeys
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
-        - AttributeName: idempotencyKey
-          AttributeType: S
+      - AttributeName: id
+        AttributeType: S
       KeySchema:
-        - AttributeName: idempotencyKey
-          KeyType: HASH
+      - AttributeName: id
+        KeyType: HASH
       TimeToLiveSpecification:
-        AttributeName: ttl
+        AttributeName: expiration
         Enabled: true
       Tags:
-        - Key: Environment
-          Value: !Ref Environment
-        - Key: Project
-          Value: !Ref ProjectName
+      - Key: Environment
+        Value:
+          Ref: Environment
+      - Key: Project
+        Value:
+          Ref: ProjectName
 
-  # EventBridge Custom Bus
+  # EventBridge for async processing
   OrderProcessingEventBus:
     Type: AWS::Events::EventBus
     Properties:
-      Name: !Sub "${ProjectName}-${Environment}-event-bus"
+      Name:
+        Fn::Sub: ${ProjectName}-${Environment}-events
       Tags:
-        - Key: Environment
-          Value: !Ref Environment
-        - Key: Project
-          Value: !Ref ProjectName
+      - Key: Environment
+        Value:
+          Ref: Environment
+      - Key: Project
+        Value:
+          Ref: ProjectName
+
+  OrderProcessingApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name:
+        Fn::Sub: ${ProjectName}-${Environment}-api
+      StageName:
+        Ref: Environment
+      TracingEnabled: true
+      Cors:
+        AllowMethods: '''GET,POST,PUT,DELETE,OPTIONS'''
+        AllowHeaders: '''Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'''
+        AllowOrigin: '''*'''
+  OrderHandler:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName:
+        Fn::Sub: ${ProjectName}-${Environment}-order-handler
+      CodeUri: ../src
+      Handler: handlers.order_handler.lambda_handler
+      Description: Order processing handler with X-Ray tracing
+      Events:
+        OrderApi:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: OrderProcessingApi
+            Path: /orders
+            Method: post
+      Policies:
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: OrdersTable
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: InventoryTable
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: PaymentsTable
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: IdempotencyTable
+      - EventBridgePutEventsPolicy:
+          EventBusName:
+            Ref: OrderProcessingEventBus
+    Metadata:
+      SamResourceId: OrderHandler
+  InventoryHandler:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName:
+        Fn::Sub: ${ProjectName}-${Environment}-inventory-handler
+      CodeUri: ../src
+      Handler: handlers.inventory_handler.lambda_handler
+      Description: Inventory management handler with X-Ray tracing
+      Events:
+        InventoryApi:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: OrderProcessingApi
+            Path: /inventory
+            Method: post
+      Policies:
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: InventoryTable
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: IdempotencyTable
+    Metadata:
+      SamResourceId: InventoryHandler
+  PaymentHandler:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName:
+        Fn::Sub: ${ProjectName}-${Environment}-payment-handler
+      CodeUri: ../src
+      Handler: handlers.payment_handler.lambda_handler
+      Description: Payment processing handler with X-Ray tracing
+      Events:
+        PaymentApi:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: OrderProcessingApi
+            Path: /payments
+            Method: post
+      Policies:
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: PaymentsTable
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: IdempotencyTable
+    Metadata:
+      SamResourceId: PaymentHandler
+
+  # Event Consumers
+  InventoryConsumer:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName:
+        Fn::Sub: ${ProjectName}-${Environment}-inventory-consumer
+      CodeUri: ../src
+      Handler: events.consumers.inventory_consumer.lambda_handler
+      Description: Inventory consumer with X-Ray tracing
+      Events:
+        InventoryConsumerRule:
+          Type: EventBridgeRule
+          Properties:
+            EventBusName:
+              Ref: OrderProcessingEventBus
+            Pattern:
+              source: ["order.service"]
+              detail-type: ["OrderPlaced"]
+      Policies:
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: InventoryTable
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: IdempotencyTable
+
+  PaymentConsumer:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName:
+        Fn::Sub: ${ProjectName}-${Environment}-payment-consumer
+      CodeUri: ../src
+      Handler: events.consumers.payment_consumer.lambda_handler
+      Description: Payment consumer with X-Ray tracing
+      Events:
+        PaymentConsumerRule:
+          Type: EventBridgeRule
+          Properties:
+            EventBusName:
+              Ref: OrderProcessingEventBus
+            Pattern:
+              source: ["order.service"]
+              detail-type: ["OrderPlaced"]
+      Policies:
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: PaymentsTable
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: IdempotencyTable
+
+  NotificationConsumer:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName:
+        Fn::Sub: ${ProjectName}-${Environment}-notification-consumer
+      CodeUri: ../src
+      Handler: events.consumers.notification_consumer.lambda_handler
+      Description: Notification consumer with X-Ray tracing
+      Events:
+        NotificationConsumerRule:
+          Type: EventBridgeRule
+          Properties:
+            EventBusName:
+              Ref: OrderProcessingEventBus
+            Pattern:
+              source: ["order.service"]
+              detail-type: ["OrderPlaced", "PaymentProcessed", "InventoryUpdated"]
+      Policies:
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: OrdersTable
 
   # Dead Letter Queues
   InventoryDLQ:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "${ProjectName}-${Environment}-inventory-dlq"
-      MessageRetentionPeriod: 1209600  # 14 days
-      Tags:
-        - Key: Environment
-          Value: !Ref Environment
-        - Key: Project
-          Value: !Ref ProjectName
-
+      QueueName:
+        Fn::Sub: ${ProjectName}-${Environment}-inventory-dlq
+      MessageRetentionPeriod: 1209600
   PaymentDLQ:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "${ProjectName}-${Environment}-payment-dlq"
-      MessageRetentionPeriod: 1209600  # 14 days
-      Tags:
-        - Key: Environment
-          Value: !Ref Environment
-        - Key: Project
-          Value: !Ref ProjectName
-
+      QueueName:
+        Fn::Sub: ${ProjectName}-${Environment}-payment-dlq
+      MessageRetentionPeriod: 1209600
   NotificationDLQ:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "${ProjectName}-${Environment}-notification-dlq"
-      MessageRetentionPeriod: 1209600  # 14 days
-      Tags:
-        - Key: Environment
-          Value: !Ref Environment
-        - Key: Project
-          Value: !Ref ProjectName
-
-  # Lambda Authorizer
-  CustomAuthorizer:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: !Sub "${ProjectName}-${Environment}-authorizer"
-      CodeUri: ../
-      Handler: authorizers.custom_authorizer.lambda_handler
-      Description: Custom Lambda Authorizer for API Gateway
-      Policies:
-        - Version: '2012-10-17'
-          Statement:
-            - Effect: Allow
-              Action:
-                - secretsmanager:GetSecretValue
-              Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:user/*"
-            - Effect: Allow
-              Action:
-                - logs:CreateLogGroup
-                - logs:CreateLogStream
-                - logs:PutLogEvents
-              Resource: "*"
-            - Effect: Allow
-              Action:
-                - xray:PutTraceSegments
-                - xray:PutTelemetryRecords
-              Resource: "*"
-
-  # Lambda Functions
-  OrderHandler:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: !Sub "${ProjectName}-${Environment}-order-handler"
-      CodeUri: ../
-      Handler: src.handlers.order_handler.lambda_handler
-      Description: Order placement and management handler
-      Events:
-        OrderAPI:
-          Type: Api
-          Properties:
-            RestApiId: !Ref OrderProcessingAPI
-            Path: /orders
-            Method: post
-            Auth:
-              Authorizer: CustomAuthorizerAuth
-      Policies:
-        - DynamoDBCrudPolicy:
-            TableName: !Ref OrdersTable
-        - DynamoDBCrudPolicy:
-            TableName: !Ref IdempotencyTable
-        - Version: '2012-10-17'
-          Statement:
-            - Effect: Allow
-              Action:
-                - events:PutEvents
-              Resource: !GetAtt OrderProcessingEventBus.Arn
-            - Effect: Allow
-              Action:
-                - logs:CreateLogGroup
-                - logs:CreateLogStream
-                - logs:PutLogEvents
-              Resource: "*"
-            - Effect: Allow
-              Action:
-                - xray:PutTraceSegments
-                - xray:PutTelemetryRecords
-              Resource: "*"
-
-  InventoryHandler:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: !Sub "${ProjectName}-${Environment}-inventory-handler"
-      CodeUri: ../
-      Handler: src.handlers.inventory_handler.lambda_handler
-      Description: Inventory management handler
-      Events:
-        InventoryAPI:
-          Type: Api
-          Properties:
-            RestApiId: !Ref OrderProcessingAPI
-            Path: /inventory
-            Method: post
-            Auth:
-              Authorizer: CustomAuthorizerAuth
-      Policies:
-        - DynamoDBCrudPolicy:
-            TableName: !Ref InventoryTable
-        - DynamoDBCrudPolicy:
-            TableName: !Ref IdempotencyTable
-        - Version: '2012-10-17'
-          Statement:
-            - Effect: Allow
-              Action:
-                - logs:CreateLogGroup
-                - logs:CreateLogStream
-                - logs:PutLogEvents
-              Resource: "*"
-            - Effect: Allow
-              Action:
-                - xray:PutTraceSegments
-                - xray:PutTelemetryRecords
-              Resource: "*"
-
-  PaymentHandler:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: !Sub "${ProjectName}-${Environment}-payment-handler"
-      CodeUri: ../
-      Handler: src.handlers.payment_handler.lambda_handler
-      Description: Payment processing handler
-      Events:
-        PaymentAPI:
-          Type: Api
-          Properties:
-            RestApiId: !Ref OrderProcessingAPI
-            Path: /payments
-            Method: post
-            Auth:
-              Authorizer: CustomAuthorizerAuth
-      Policies:
-        - DynamoDBCrudPolicy:
-            TableName: !Ref PaymentsTable
-        - DynamoDBCrudPolicy:
-            TableName: !Ref IdempotencyTable
-        - Version: '2012-10-17'
-          Statement:
-            - Effect: Allow
-              Action:
-                - logs:CreateLogGroup
-                - logs:CreateLogStream
-                - logs:PutLogEvents
-              Resource: "*"
-            - Effect: Allow
-              Action:
-                - xray:PutTraceSegments
-                - xray:PutTelemetryRecords
-              Resource: "*"
-
-  # Event Consumer Lambda Functions
-  InventoryConsumer:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: !Sub "${ProjectName}-${Environment}-inventory-consumer"
-      CodeUri: ../
-      Handler: events.consumers.inventory_consumer.lambda_handler
-      Description: Inventory update consumer for OrderPlaced events
-      DeadLetterQueue:
-        Type: SQS
-        TargetArn: !GetAtt InventoryDLQ.Arn
-      Events:
-        OrderPlacedEvent:
-          Type: EventBridgeRule
-          Properties:
-            EventBusName: !Ref OrderProcessingEventBus
-            Pattern:
-              source: ["order-service"]
-              detail-type: ["OrderPlaced"]
-      Policies:
-        - DynamoDBCrudPolicy:
-            TableName: !Ref InventoryTable
-        - DynamoDBCrudPolicy:
-            TableName: !Ref IdempotencyTable
-        - Version: '2012-10-17'
-          Statement:
-            - Effect: Allow
-              Action:
-                - logs:CreateLogGroup
-                - logs:CreateLogStream
-                - logs:PutLogEvents
-              Resource: "*"
-            - Effect: Allow
-              Action:
-                - xray:PutTraceSegments
-                - xray:PutTelemetryRecords
-              Resource: "*"
-
-  PaymentConsumer:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: !Sub "${ProjectName}-${Environment}-payment-consumer"
-      CodeUri: ../
-      Handler: events.consumers.payment_consumer.lambda_handler
-      Description: Payment processing consumer for OrderPlaced events
-      DeadLetterQueue:
-        Type: SQS
-        TargetArn: !GetAtt PaymentDLQ.Arn
-      Events:
-        OrderPlacedEvent:
-          Type: EventBridgeRule
-          Properties:
-            EventBusName: !Ref OrderProcessingEventBus
-            Pattern:
-              source: ["order-service"]
-              detail-type: ["OrderPlaced"]
-      Policies:
-        - DynamoDBCrudPolicy:
-            TableName: !Ref PaymentsTable
-        - DynamoDBCrudPolicy:
-            TableName: !Ref IdempotencyTable
-        - Version: '2012-10-17'
-          Statement:
-            - Effect: Allow
-              Action:
-                - logs:CreateLogGroup
-                - logs:CreateLogStream
-                - logs:PutLogEvents
-              Resource: "*"
-
-  NotificationConsumer:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: !Sub "${ProjectName}-${Environment}-notification-consumer"
-      CodeUri: ../
-      Handler: events.consumers.notification_consumer.lambda_handler
-      Description: Notification consumer for OrderPlaced events
-      DeadLetterQueue:
-        Type: SQS
-        TargetArn: !GetAtt NotificationDLQ.Arn
-      Events:
-        OrderPlacedEvent:
-          Type: EventBridgeRule
-          Properties:
-            EventBusName: !Ref OrderProcessingEventBus
-            Pattern:
-              source: ["order-service"]
-              detail-type: ["OrderPlaced"]
-      Policies:
-        - Version: '2012-10-17'
-          Statement:
-            - Effect: Allow
-              Action:
-                - logs:CreateLogGroup
-                - logs:CreateLogStream
-                - logs:PutLogEvents
-              Resource: "*"
-
-  # DLQ Replay Handlers
-  InventoryReplayHandler:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: !Sub "${ProjectName}-${Environment}-inventory-replay"
-      CodeUri: ../
-      Handler: events.consumers.inventory_consumer.replay_handler
-      Description: Replay handler for inventory DLQ messages
-      Events:
-        DLQReplay:
-          Type: SQS
-          Properties:
-            Queue: !GetAtt InventoryDLQ.Arn
-            BatchSize: 10
-      Policies:
-        - DynamoDBCrudPolicy:
-            TableName: !Ref InventoryTable
-        - DynamoDBCrudPolicy:
-            TableName: !Ref IdempotencyTable
-        - Version: '2012-10-17'
-          Statement:
-            - Effect: Allow
-              Action:
-                - logs:CreateLogGroup
-                - logs:CreateLogStream
-                - logs:PutLogEvents
-              Resource: "*"
-
-  PaymentReplayHandler:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: !Sub "${ProjectName}-${Environment}-payment-replay"
-      CodeUri: ../
-      Handler: events.consumers.payment_consumer.replay_handler
-      Description: Replay handler for payment DLQ messages
-      Events:
-        DLQReplay:
-          Type: SQS
-          Properties:
-            Queue: !GetAtt PaymentDLQ.Arn
-            BatchSize: 10
-      Policies:
-        - DynamoDBCrudPolicy:
-            TableName: !Ref PaymentsTable
-        - DynamoDBCrudPolicy:
-            TableName: !Ref IdempotencyTable
-        - Version: '2012-10-17'
-          Statement:
-            - Effect: Allow
-              Action:
-                - logs:CreateLogGroup
-                - logs:CreateLogStream
-                - logs:PutLogEvents
-              Resource: "*"
-
-  NotificationReplayHandler:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: !Sub "${ProjectName}-${Environment}-notification-replay"
-      CodeUri: ../
-      Handler: events.consumers.notification_consumer.replay_handler
-      Description: Replay handler for notification DLQ messages
-      Events:
-        DLQReplay:
-          Type: SQS
-          Properties:
-            Queue: !GetAtt NotificationDLQ.Arn
-            BatchSize: 10
-      Policies:
-        - Version: '2012-10-17'
-          Statement:
-            - Effect: Allow
-              Action:
-                - logs:CreateLogGroup
-                - logs:CreateLogStream
-                - logs:PutLogEvents
-              Resource: "*"
-
-  # API Gateway
-  OrderProcessingAPI:
-    Type: AWS::Serverless::Api
-    Properties:
-      Name: !Sub "${ProjectName}-${Environment}-api"
-      StageName: !Ref Environment
-      Description: Order Processing System API
-      Cors:
-        AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
-        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-        AllowOrigin: "'*'"
-      Auth:
-        Authorizers:
-          CustomAuthorizerAuth:
-            FunctionArn: !GetAtt CustomAuthorizer.Arn
-            Identity:
-              Header: Authorization
-              ValidationExpression: "^(Basic|Bearer) .*"
-      Tags:
-        Environment: !Ref Environment
-        Project: !Ref ProjectName
-
-  # CloudWatch Log Groups
-  OrderHandlerLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub "/aws/lambda/${ProjectName}-${Environment}-order-handler"
-      RetentionInDays: 14
-
-  InventoryHandlerLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub "/aws/lambda/${ProjectName}-${Environment}-inventory-handler"
-      RetentionInDays: 14
-
-  PaymentHandlerLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub "/aws/lambda/${ProjectName}-${Environment}-payment-handler"
-      RetentionInDays: 14
-
-  AuthorizerLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub "/aws/lambda/${ProjectName}-${Environment}-authorizer"
-      RetentionInDays: 14
-
+      QueueName:
+        Fn::Sub: ${ProjectName}-${Environment}-notification-dlq
+      MessageRetentionPeriod: 1209600
 Outputs:
   OrderProcessingAPIUrl:
-    Description: "API Gateway endpoint URL for Order Processing System"
-    Value: !Sub "https://${OrderProcessingAPI}.execute-api.${AWS::Region}.amazonaws.com/${Environment}/"
+    Description: API Gateway endpoint URL for Order Processing
+    Value:
+      Fn::Sub: https://${OrderProcessingApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}/
     Export:
-      Name: !Sub "${ProjectName}-${Environment}-api-url"
-
+      Name:
+        Fn::Sub: ${ProjectName}-${Environment}-APIUrl
   OrdersTableName:
-    Description: "DynamoDB Orders table name"
-    Value: !Ref OrdersTable
+    Description: Orders DynamoDB table name
+    Value:
+      Ref: OrdersTable
     Export:
-      Name: !Sub "${ProjectName}-${Environment}-orders-table"
-
+      Name:
+        Fn::Sub: ${ProjectName}-${Environment}-OrdersTable
   InventoryTableName:
-    Description: "DynamoDB Inventory table name"
-    Value: !Ref InventoryTable
+    Description: Inventory DynamoDB table name
+    Value:
+      Ref: InventoryTable
     Export:
-      Name: !Sub "${ProjectName}-${Environment}-inventory-table"
-
+      Name:
+        Fn::Sub: ${ProjectName}-${Environment}-InventoryTable
   PaymentsTableName:
-    Description: "DynamoDB Payments table name"
-    Value: !Ref PaymentsTable
+    Description: Payments DynamoDB table name
+    Value:
+      Ref: PaymentsTable
     Export:
-      Name: !Sub "${ProjectName}-${Environment}-payments-table"
+      Name:
+        Fn::Sub: ${ProjectName}-${Environment}-PaymentsTable
 
   EventBusName:
-    Description: "EventBridge custom bus name"
-    Value: !Ref OrderProcessingEventBus
+    Description: EventBridge bus name
+    Value:
+      Ref: OrderProcessingEventBus
     Export:
-      Name: !Sub "${ProjectName}-${Environment}-event-bus"
+      Name:
+        Fn::Sub: ${ProjectName}-${Environment}-EventBus
 
-  CustomAuthorizerArn:
-    Description: "Custom Lambda Authorizer ARN"
-    Value: !GetAtt CustomAuthorizer.Arn
-    Export:
-      Name: !Sub "${ProjectName}-${Environment}-authorizer-arn"
+  XRayTracingInfo:
+    Description: X-Ray tracing configuration
+    Value:
+      Fn::Sub: 'X-Ray enabled with service name: ${ProjectName}-${Environment}'

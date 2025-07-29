@@ -1,34 +1,28 @@
-# SAM configuration file for Order Processing System
-
+# SAM configuration file for Order Processing System with X-Ray Tracing
 version = 0.1
 
 [default]
 [default.global.parameters]
-stack_name = "order-processing-system"
+stack_name = "order-processing-v2-dev"
 region = "us-east-1"
 confirm_changeset = true
 capabilities = "CAPABILITY_IAM"
-parameter_overrides = [
-    "Environment=dev",
-    "ProjectName=order-processing-system"
-]
+parameter_overrides = "Environment=\"dev\" ProjectName=\"order-processing-v2\""
 disable_rollback = false
-image_repositories = []
 
 [default.build.parameters]
 cached = true
 parallel = true
+use_container = false
 
 [default.deploy.parameters]
 fail_on_empty_changeset = false
-stack_name = "order-processing-system-dev"
-s3_prefix = "order-processing-system-dev"
 resolve_s3 = true
-parameter_overrides = "Environment=\"dev\" ProjectName=\"order-processing-system\""
+s3_prefix = "order-processing-v2-dev"
 image_repositories = []
 
 [default.package.parameters]
-s3_prefix = "order-processing-system"
+resolve_s3 = true
 
 [default.sync.parameters]
 watch = true
@@ -39,52 +33,19 @@ warm_containers = "EAGER"
 [default.local_start_lambda.parameters]
 warm_containers = "EAGER"
 
-# Production environment configuration
-[production]
-[production.global.parameters]
-stack_name = "order-processing-system-prod"
-region = "us-east-1"
-confirm_changeset = true
-capabilities = "CAPABILITY_IAM"
-parameter_overrides = [
-    "Environment=prod",
-    "ProjectName=order-processing-system"
-]
-
-[production.deploy.parameters]
-capabilities = "CAPABILITY_IAM"
-confirm_changeset = true
-fail_on_empty_changeset = false
-stack_name = "order-processing-system-prod"
-s3_prefix = "order-processing-system-prod"
-region = "us-east-1"
-resolve_s3 = true
-parameter_overrides = [
-    "Environment=prod",
-    "ProjectName=order-processing-system"
-]
-
-# Staging environment configuration
+# Environment-specific configurations
 [staging]
 [staging.global.parameters]
-stack_name = "order-processing-system-staging"
-region = "us-east-1"
-confirm_changeset = true
-capabilities = "CAPABILITY_IAM"
-parameter_overrides = [
-    "Environment=staging",
-    "ProjectName=order-processing-system"
-]
+stack_name = "order-processing-v2-staging"
+parameter_overrides = "Environment=\"staging\" ProjectName=\"order-processing-v2\""
 
 [staging.deploy.parameters]
-capabilities = "CAPABILITY_IAM"
-confirm_changeset = true
-fail_on_empty_changeset = false
-stack_name = "order-processing-system-staging"
-s3_prefix = "order-processing-system-staging"
-region = "us-east-1"
-resolve_s3 = true
-parameter_overrides = [
-    "Environment=staging",
-    "ProjectName=order-processing-system"
-]
+s3_prefix = "order-processing-v2-staging"
+
+[prod]
+[prod.global.parameters]
+stack_name = "order-processing-v2-prod"
+parameter_overrides = "Environment=\"prod\" ProjectName=\"order-processing-v2\""
+
+[prod.deploy.parameters]
+s3_prefix = "order-processing-v2-prod"
